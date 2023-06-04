@@ -1,0 +1,21 @@
+[tool.poetry]
+name = "otus-mlops-cdc-model"
+version = "0.1.0"
+description = ""
+authors = ["inna-tuzhikova <inna-tuzhikova@github.com>"]
+readme = "README.md"
+packages = [{include = "otus_mlops_cdc_model"}]
+
+[tool.poetry.dependencies]
+python = "~3.9.16"
+numpy = "1.24.3"
+pandas = "2.0.2"
+pillow = "9.5.0"
+ipykernel = "6.23.1"
+scikit-learn = "^1.2.2"
+tqdm = "^4.65.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
