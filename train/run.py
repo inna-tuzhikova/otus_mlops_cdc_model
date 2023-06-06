@@ -74,10 +74,10 @@ def test(model, criterion, test_loader, device):
             test_loss = criterion(output, y)
 
     test_loss /= len(test_loader.dataset)
-    accuracy = int(correct / len(test_loader.dataset))
+    accuracy = int(correct / len(test_loader.dataset) * 100)
     print(
         f'Average Loss: {test_loss}\n'
-        f'Accuracy: {accuracy}, ({correct} / {len(test_loader.dataset)})'
+        f'Accuracy: {accuracy}%, ({correct} / {len(test_loader.dataset)})'
     )
 
 
