@@ -26,7 +26,7 @@ def main():
 
 
 def prepare_model(model_path: Path, output_path: Path):
-    device = torch.device('CPU')
+    device = torch.device('cpu')
     model = prepare_model()
     transform = get_inference_transform()
 
