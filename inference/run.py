@@ -22,10 +22,10 @@ def main():
     )
     args = parser.parse_args()
     assert args.model_path.is_file(), f'Model not found: {args.model_path}'
-    get_model(args.model_path, args.output_path)
+    prepare_executable_script(args.model_path, args.output_path)
 
 
-def get_model(model_path: Path, output_path: Path):
+def prepare_executable_script(model_path: Path, output_path: Path):
     device = torch.device('cpu')
     model = prepare_model()
     transform = get_inference_transform()
