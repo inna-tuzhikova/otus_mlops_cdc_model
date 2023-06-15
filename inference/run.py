@@ -3,7 +3,6 @@ from argparse import ArgumentParser
 
 import torch
 
-from train.model import prepare_model
 from train.dataset import get_inference_transform
 from inference.predictor import Predictor
 
@@ -25,13 +24,11 @@ def main():
     prepare_executable_script(args.model_path, args.output_path)
 
 
-def prepare_executable_script(model_path: Path, output_path: Path):
+def prepare_executable_script(model, output_path: Path) -> None:
     device = torch.device('cpu')
-    model = prepare_model()
-    transform = get_inference_transform()
-
-    model.load_state_dict(torch.load(model_path)['model_state_dict'])
     model.to(device)
+
+    transform = get_inference_transform()
 
     predictor = Predictor(model, transform).to(device)
     scripted_predictor = torch.jit.script(predictor).to(device)

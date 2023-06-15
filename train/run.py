@@ -6,16 +6,16 @@ import torch
 from tqdm import tqdm
 import mlflow.pytorch
 import mlflow
+from dotenv import load_dotenv
 
 from train import config
 from train.model import prepare
 from train.dataset import get_data_loaders
 from inference.run import prepare_executable_script
 
-
-mlflow.set_tracking_uri('http://51.250.22.177:5000/')
-mlflow.set_experiment('cdc_test')
-os.environ['MLFLOW_S3_ENDPOINT_URL'] = 'http://51.250.22.177:9000'
+load_dotenv()
+mlflow.set_tracking_uri(os.environ['MLFLOW_TRACKING_URI'])
+mlflow.set_experiment('cdc_baseline')
 
 
 def main():
@@ -36,49 +36,76 @@ def train(dataset_path: Path):
     model, criterion, optimizer = prepare()
     model.to(device)
     train_loader, test_loader = get_data_loaders(dataset_path)
+
+    mlflow.log_params(dict(
+        N_EPOCHS=config.N_EPOCHS,
+        LR=config.LR,
+        BATCH_SIZE=config.BATCH_SIZE,
+        TEST_SIZE=config.TEST_SIZE,
+        RANDOM_STATE=config.RANDOM_STATE,
+    ))
+
     for epoch in range(config.N_EPOCHS):
-        losses = []
         model.train()
-        loop = tqdm(enumerate(train_loader), total=len(train_loader))
-        for batch_idx, (data, targets) in loop:
+
+        loop = tqdm(
+            train_loader,
+            total=len(train_loader),
+            desc=f'Epoch {epoch + 1}/{config.N_EPOCHS}'
+        )
+
+        current_loss = 0
+        current_correct = 0
+
+        for data, targets in loop:
             data = data.to(device=device)
             targets = targets.to(device=device)
             scores = model(data)
 
             loss = criterion(scores, targets)
             optimizer.zero_grad()
-            losses.append(loss)
             loss.backward()
             optimizer.step()
-            # _, preds = torch.max(scores, 1)
-            # current_loss += loss.item() * data.size(0)
-            # current_corrects += (preds == targets).sum().item()
-            # accuracy = int(current_corrects / len(train_loader.dataset) * 100)
-            loop.set_description(
-                f'Epoch {epoch + 1}/{config.N_EPOCHS} '
-                f'process: {int((batch_idx / len(train_loader)) * 100)}'
-            )
             loop.set_postfix(loss=loss.data.item())
-        torch.save(
-            dict(
-                model_state_dict=model.state_dict(),
-                optimizer_state_dict=optimizer.state_dict()
-            ),
-            f'checkpoint_epoch_{epoch}.pt'
+
+            _, predictions = torch.max(scores, 1)
+            current_loss += loss.item() * data.size(0)
+            current_correct += (predictions == targets).sum().item()
+
+        train_loss = current_loss / len(train_loader.dataset)
+        train_accuracy = current_correct / len(train_loader.dataset)
+
+        test_loss, test_accuracy = test(model, criterion, test_loader, device)
+        print(
+            f'TOTAL. '
+            f'Train: loss {train_loss:0.4f}, acc {train_accuracy:0.4f}. '
+            f'Test: loss {test_loss:0.4f}, acc {test_accuracy:0.4f}'
         )
-    test(model, criterion, test_loader, device)
-    prepare_executable_script(Path(f'checkpoint_epoch_{epoch}.pt'), Path('scripted_model.pt'))
+        mlflow.log_metrics(
+            metrics=dict(
+                train_loss=train_loss,
+                train_accuracy=train_accuracy,
+                test_loss=test_loss,
+                test_accuracy=test_accuracy,
+            ),
+            step=epoch
+        )
+
+    output_path = Path('scripted_model.pt')
+    # To save scripted model as a model artifact
+    inner_artifact_path = 'model_meta'
+
+    prepare_executable_script(model, output_path)
     mlflow.pytorch.log_model(
         pytorch_model=model,
-        artifact_path=f'home-home'
+        artifact_path=inner_artifact_path
     )
-
-    mlflow.log_artifact('scripted_model.pt', 'home-home')
+    mlflow.log_artifact(str(output_path), inner_artifact_path)
 
 
 def test(model, criterion, test_loader, device):
     model.eval()
-    test_loss = 0
+    loss = 0
     correct = 0
     with torch.no_grad():
         for x, y in test_loader:
@@ -87,14 +114,11 @@ def test(model, criterion, test_loader, device):
             output = model(x)
             _, predictions = torch.max(output, 1)
             correct += (predictions == y).sum().item()
-            test_loss = criterion(output, y)
+            loss += criterion(output, y).item() * x.size(0)
 
-    test_loss /= len(test_loader.dataset)
-    accuracy = int(correct / len(test_loader.dataset) * 100)
-    print(
-        f'Average Loss: {test_loss}\n'
-        f'Accuracy: {accuracy}%, ({correct} / {len(test_loader.dataset)})'
-    )
+    loss /= len(test_loader.dataset)
+    accuracy = correct / len(test_loader.dataset)
+    return loss, accuracy
 
 
 if __name__ == '__main__':

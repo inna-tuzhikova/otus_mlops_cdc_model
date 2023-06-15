@@ -18,6 +18,7 @@ torch = "2.0.0"
 torchvision = "0.15.1"
 mlflow = "2.4.1"
 boto3 = "1.26.153"
+python-dotenv = "^1.0.0"
 
 
 [build-system]
