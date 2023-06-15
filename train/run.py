@@ -1,12 +1,21 @@
 from pathlib import Path
 from argparse import ArgumentParser
+import os
 
 import torch
 from tqdm import tqdm
+import mlflow.pytorch
+import mlflow
 
 from train import config
 from train.model import prepare
 from train.dataset import get_data_loaders
+from inference.run import prepare_executable_script
+
+
+mlflow.set_tracking_uri('http://51.250.22.177:5000/')
+mlflow.set_experiment('cdc_test')
+os.environ['MLFLOW_S3_ENDPOINT_URL'] = 'http://51.250.22.177:9000'
 
 
 def main():
@@ -58,6 +67,13 @@ def train(dataset_path: Path):
             f'checkpoint_epoch_{epoch}.pt'
         )
     test(model, criterion, test_loader, device)
+    prepare_executable_script(Path(f'checkpoint_epoch_{epoch}.pt'), Path('scripted_model.pt'))
+    mlflow.pytorch.log_model(
+        pytorch_model=model,
+        artifact_path=f'home-home'
+    )
+
+    mlflow.log_artifact('scripted_model.pt', 'home-home')
 
 
 def test(model, criterion, test_loader, device):
